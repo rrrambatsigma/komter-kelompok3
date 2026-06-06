@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventaris</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f4f4f4;
+        }
+
+        h1, h2 {
+            margin-bottom: 10px;
+        }
+
+        .section {
+            background: white;
+            padding: 15px;
+            margin-bottom: 25px;
+            border-radius: 10px;
+            box-shadow: 0 0 6px rgba(0,0,0,0.1);
+        }
+
+        form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        form input {
+            padding: 8px;
+            min-width: 180px;
+        }
+
+        form button, button {
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            background: white;
+        }
+
+        th, td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: center;
+        }
+
+        th {
+            background: #ddd;
+        }
+
+        .status {
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        .btn-edit {
+            background: orange;
+            border: none;
+            color: white;
+        }
+
+        .btn-delete {
+            background: crimson;
+            border: none;
+            color: white;
+        }
+
+        .btn-save {
+            background: seagreen;
+            border: none;
+            color: white;
+        }
+
+        .btn-cancel {
+            background: gray;
+            border: none;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Aplikasi Inventaris</h1>
+    <p id="globalStatus" class="status">Loading...</p>
+
+    <!-- ===================== GUDANG ===================== -->
+    <div class="section">
+        <h2>Data Gudang</h2>
+
+        <form id="formGudang">
+            <input type="hidden" id="gudang_id">
+            <input type="text" id="nama_gudang" placeholder="Nama Gudang" required>
+            <input type="text" id="lokasi" placeholder="Lokasi" required>
+            <button type="submit" class="btn-save">Simpan Gudang</button>
+            <button type="button" class="btn-cancel" onclick="resetGudangForm()">Batal</button>
+        </form>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>ID Gudang</th>
+                    <th>Nama Gudang</th>
+                    <th>Lokasi</th>
+                    <th>Aksi</th>
+                </tr>
+            </thead>
+            <tbody id="gudangTable"></tbody>
+        </table>
+    </div>
+
+    <!-- ===================== BARANG ===================== -->
+    <div class="section">
+        <h2>Data Barang</h2>
+
+        <form id="formBarang">
+            <input type="hidden" id="barang_id">
+            <input type="text" id="nama_barang" placeholder="Nama Barang" required>
+            <input type="text" id="kategori" placeholder="Kategori" required>
+            <input type="text" id="satuan" placeholder="Satuan" required>
+            <button type="submit" class="btn-save">Simpan Barang</button>
+            <button type="button" class="btn-cancel" onclick="resetBarangForm()">Batal</button>
+        </form>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>ID Barang</th>
+                    <th>Nama Barang</th>
+                    <th>Kategori</th>
+                    <th>Satuan</th>
+                    <th>Aksi</th>
+                </tr>
+            </thead>
+            <tbody id="barangTable"></tbody>
+        </table>
+    </div>
+
+    <!-- ===================== STOK ===================== -->
+    <div class="section">
+        <h2>Data Stok</h2>
+
+        <form id="formStok">
+            <input type="hidden" id="stok_id">
+            <input type="number" id="stok_id_gudang" placeholder="ID Gudang" required>
+            <input type="number" id="stok_id_barang" placeholder="ID Barang" required>
+            <input type="number" id="jumlah" placeholder="Jumlah" required>
+            <button type="submit" class="btn-save">Simpan Stok</button>
+            <button type="button" class="btn-cancel" onclick="resetStokForm()">Batal</button>
+        </form>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>ID Stok</th>
+                    <th>Gudang</th>
+                    <th>Lokasi</th>
+                    <th>Barang</th>
+                    <th>Kategori</th>
+                    <th>Satuan</th>
+                    <th>Jumlah</th>
+                    <th>Aksi</th>
+                </tr>
+            </thead>
+            <tbody id="stokTable"></tbody>
+        </table>
+    </div>
+
+   <script>
+    const globalStatus = document.getElementById("globalStatus");
+
+    function setStatus(message) {
+        globalStatus.innerText = message;
+    }
+
+    async function safeJson(res) {
+        const text = await res.text();
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            throw new Error("Response bukan JSON valid: " + text);
+        }
+    }
+
+    // =====================
+    // LOAD ALL DATA
+    // =====================
+    async function loadAllData() {
+    try {
+        setStatus("Loading data...");
+        console.log("Mulai load gudang");
+        await loadGudang();
+
+        console.log("Mulai load barang");
+        await loadBarang();
+
+        console.log("Mulai load stok");
+        await loadStok();
+
+        setStatus("✅ Semua data berhasil dimuat");
+        console.log("Semua data selesai dimuat");
+    } catch (err) {
+        console.error("ERROR loadAllData:", err);
+        setStatus("❌ Gagal load semua data");
+    }
+}
+
+    // =====================
+    // GUDANG
+    // =====================
+    async function loadGudang() {
+        try {
+            const res = await fetch('/gudang');
+            console.log("GET /gudang status:", res.status);
+            if (!res.ok) {
+                console.warn("GET /gudang gagal:", res.status);
+                return;
+            }
+
+            const result = await safeJson(res);
+            const table = document.getElementById('gudangTable');
+            table.innerHTML = "";
+
+            if (result.status !== "success" || !Array.isArray(result.data)) {
+                console.warn("Response /gudang tidak sesuai:", result);
+                return;
+            }
+
+            result.data.forEach(item => {
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td>${item.id_gudang ?? ''}</td>
+                    <td>${item.nama_gudang ?? ''}</td>
+                    <td>${item.lokasi ?? ''}</td>
+                    <td>
+                        <button class="btn-edit">Edit</button>
+                        <button class="btn-delete">Hapus</button>
+                    </td>
+                `;
+
+                row.querySelector(".btn-edit").addEventListener("click", function () {
+                    editGudang(item.id_gudang, item.nama_gudang, item.lokasi);
+                });
+
+                row.querySelector(".btn-delete").addEventListener("click", function () {
+                    deleteGudang(item.id_gudang);
+                });
+
+                table.appendChild(row);
+            });
+        } catch (err) {
+            console.error("ERROR loadGudang:", err);
+        }
+    }
+
+    document.getElementById("formGudang").addEventListener("submit", async function(e) {
+        e.preventDefault();
+
+        const id = document.getElementById("gudang_id").value;
+        const nama_gudang = document.getElementById("nama_gudang").value;
+        const lokasi = document.getElementById("lokasi").value;
+
+        const method = id ? "PUT" : "POST";
+        const url = id ? `/gudang/${id}` : "/gudang";
+
+        try {
+            const res = await fetch(url, {
+                method: method,
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ nama_gudang, lokasi })
+            });
+
+            const result = await safeJson(res);
+            setStatus(result.message || "Proses gudang selesai");
+
+            resetGudangForm();
+            await loadGudang();
+            await loadStok();
+        } catch (err) {
+            console.error("ERROR submit gudang:", err);
+            setStatus("❌ Error simpan data gudang");
+        }
+    });
+
+    function editGudang(id, nama, lokasi) {
+        document.getElementById("gudang_id").value = id ?? "";
+        document.getElementById("nama_gudang").value = nama ?? "";
+        document.getElementById("lokasi").value = lokasi ?? "";
+        setStatus("✏️ Mode edit gudang aktif");
+    }
+
+    async function deleteGudang(id) {
+        if (!confirm("Yakin hapus data gudang ini?")) return;
+
+        try {
+            const res = await fetch(`/gudang/${id}`, {
+                method: "DELETE"
+            });
+
+            const result = await safeJson(res);
+            setStatus(result.message || "Data gudang dihapus");
+
+            await loadGudang();
+            await loadStok();
+        } catch (err) {
+            console.error("ERROR delete gudang:", err);
+            setStatus("❌ Error hapus data gudang");
+        }
+    }
+
+    function resetGudangForm() {
+        document.getElementById("gudang_id").value = "";
+        document.getElementById("nama_gudang").value = "";
+        document.getElementById("lokasi").value = "";
+    }
+
+    // =====================
+    // BARANG
+    // =====================
+    async function loadBarang() {
+        try {
+            const res = await fetch('/barang');
+            console.log("GET /barang status:", res.status);
+            if (!res.ok) {
+                console.warn("GET /barang gagal:", res.status);
+                return;
+            }
+
+            const result = await safeJson(res);
+            const table = document.getElementById('barangTable');
+            table.innerHTML = "";
+
+            if (result.status !== "success" || !Array.isArray(result.data)) {
+                console.warn("Response /barang tidak sesuai:", result);
+                return;
+            }
+
+            result.data.forEach(item => {
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td>${item.id_barang ?? ''}</td>
+                    <td>${item.nama_barang ?? ''}</td>
+                    <td>${item.kategori ?? ''}</td>
+                    <td>${item.satuan ?? ''}</td>
+                    <td>
+                        <button class="btn-edit">Edit</button>
+                        <button class="btn-delete">Hapus</button>
+                    </td>
+                `;
+
+                row.querySelector(".btn-edit").addEventListener("click", function () {
+                    editBarang(item.id_barang, item.nama_barang, item.kategori, item.satuan);
+                });
+
+                row.querySelector(".btn-delete").addEventListener("click", function () {
+                    deleteBarang(item.id_barang);
+                });
+
+                table.appendChild(row);
+            });
+        } catch (err) {
+            console.error("ERROR loadBarang:", err);
+        }
+    }
+
+    document.getElementById("formBarang").addEventListener("submit", async function(e) {
+        e.preventDefault();
+
+        const id = document.getElementById("barang_id").value;
+        const nama_barang = document.getElementById("nama_barang").value;
+        const kategori = document.getElementById("kategori").value;
+        const satuan = document.getElementById("satuan").value;
+
+        const method = id ? "PUT" : "POST";
+        const url = id ? `/barang/${id}` : "/barang";
+
+        try {
+            const res = await fetch(url, {
+                method: method,
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ nama_barang, kategori, satuan })
+            });
+
+            const result = await safeJson(res);
+            setStatus(result.message || "Proses barang selesai");
+
+            resetBarangForm();
+            await loadBarang();
+            await loadStok();
+        } catch (err) {
+            console.error("ERROR submit barang:", err);
+            setStatus("❌ Error simpan data barang");
+        }
+    });
+
+    function editBarang(id, nama, kategori, satuan) {
+        document.getElementById("barang_id").value = id ?? "";
+        document.getElementById("nama_barang").value = nama ?? "";
+        document.getElementById("kategori").value = kategori ?? "";
+        document.getElementById("satuan").value = satuan ?? "";
+        setStatus("✏️ Mode edit barang aktif");
+    }
+
+    async function deleteBarang(id) {
+        if (!confirm("Yakin hapus data barang ini?")) return;
+
+        try {
+            const res = await fetch(`/barang/${id}`, {
+                method: "DELETE"
+            });
+
+            const result = await safeJson(res);
+            setStatus(result.message || "Data barang dihapus");
+
+            await loadBarang();
+            await loadStok();
+        } catch (err) {
+            console.error("ERROR delete barang:", err);
+            setStatus("❌ Error hapus data barang");
+        }
+    }
+
+    function resetBarangForm() {
+        document.getElementById("barang_id").value = "";
+        document.getElementById("nama_barang").value = "";
+        document.getElementById("kategori").value = "";
+        document.getElementById("satuan").value = "";
+    }
+
+    // =====================
+    // STOK
+    // =====================
+    async function loadStok() {
+        try {
+            const res = await fetch('/stok');
+            console.log("GET /stok status:", res.status);
+            if (!res.ok) {
+                setStatus("❌ GET /stok gagal: " + res.status);
+                return;
+            }
+
+            const result = await safeJson(res);
+            const table = document.getElementById('stokTable');
+            table.innerHTML = "";
+
+            if (result.status !== "success" || !Array.isArray(result.data)) {
+                setStatus("❌ Response /stok tidak sesuai");
+                console.warn(result);
+                return;
+            }
+
+            if (result.data.length === 0) {
+                setStatus("⚠️ Data stok kosong");
+                return;
+            }
+
+            result.data.forEach(item => {
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td>${item.id_stok ?? ''}</td>
+                    <td>${item.gudang ?? ''}</td>
+                    <td>${item.lokasi ?? ''}</td>
+                    <td>${item.barang ?? ''}</td>
+                    <td>${item.kategori ?? ''}</td>
+                    <td>${item.satuan ?? ''}</td>
+                    <td>${item.jumlah ?? ''}</td>
+                    <td>
+                        <button class="btn-edit">Edit</button>
+                        <button class="btn-delete">Hapus</button>
+                    </td>
+                `;
+
+                row.querySelector(".btn-edit").addEventListener("click", function () {
+                    editStok(item.id_stok, item.id_gudang, item.id_barang, item.jumlah);
+                });
+
+                row.querySelector(".btn-delete").addEventListener("click", function () {
+                    deleteStok(item.id_stok);
+                });
+
+                table.appendChild(row);
+            });
+        } catch (err) {
+            console.error("ERROR loadStok:", err);
+            setStatus("❌ Error saat load data stok");
+        }
+    }
+
+    document.getElementById("formStok").addEventListener("submit", async function(e) {
+        e.preventDefault();
+
+        const id = document.getElementById("stok_id").value;
+        const id_gudang = document.getElementById("stok_id_gudang").value;
+        const id_barang = document.getElementById("stok_id_barang").value;
+        const jumlah = document.getElementById("jumlah").value;
+
+        const method = id ? "PUT" : "POST";
+        const url = id ? `/stok/${id}` : "/stok";
+
+        try {
+            const res = await fetch(url, {
+                method: method,
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    id_gudang: Number(id_gudang),
+                    id_barang: Number(id_barang),
+                    jumlah: Number(jumlah)
+                })
+            });
+
+            const result = await safeJson(res);
+            setStatus(result.message || "Proses stok selesai");
+
+            resetStokForm();
+            await loadStok();
+        } catch (err) {
+            console.error("ERROR submit stok:", err);
+            setStatus("❌ Error simpan data stok");
+        }
+    });
+
+    function editStok(id_stok, id_gudang, id_barang, jumlah) {
+        document.getElementById("stok_id").value = id_stok ?? "";
+        document.getElementById("stok_id_gudang").value = id_gudang ?? "";
+        document.getElementById("stok_id_barang").value = id_barang ?? "";
+        document.getElementById("jumlah").value = jumlah ?? "";
+        setStatus("✏️ Mode edit stok aktif");
+    }
+
+    async function deleteStok(id) {
+        if (!confirm("Yakin hapus data stok ini?")) return;
+
+        try {
+            const res = await fetch(`/stok/${id}`, {
+                method: "DELETE"
+            });
+
+            const result = await safeJson(res);
+            setStatus(result.message || "Data stok dihapus");
+            await loadStok();
+        } catch (err) {
+            console.error("ERROR delete stok:", err);
+            setStatus("❌ Error hapus data stok");
+        }
+    }
+
+    function resetStokForm() {
+        document.getElementById("stok_id").value = "";
+        document.getElementById("stok_id_gudang").value = "";
+        document.getElementById("stok_id_barang").value = "";
+        document.getElementById("jumlah").value = "";
+    }
+
+    window.addEventListener("load", function () {
+        loadAllData();
+    });
+</script>
+
+</body>
+</html>
