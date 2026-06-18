@@ -1,117 +1,60 @@
 from flask import Flask, jsonify, render_template, request
-from flask_cors import CORS
-import psycopg
-from psycopg.rows import dict_row
+import pyodbc
 
 app = Flask(__name__)
-CORS(app)  # supaya frontend temanmu bisa akses API ini
 
-# =====================
-# CONFIG DATABASE
-# =====================
+# Database configuration
 DB_CONFIG = {
-    "host": "100.99.218.78",   # IP Tailscale laptop server database
-    "port": 5432,
-    "dbname": "inventaris_db",
-    "user": "postgres",        # ganti kalau nanti pakai app_user
-    "password": "031205"
+    "server": "100.89.60.29,1433",  # Database server
+    "database": "inventaris_db",  # Database name
+    "username": "app_user",  # Username
+    "password": "123456",  # Password
+    "driver": "ODBC Driver 17 for SQL Server"  # SQL Server ODBC driver
 }
 
-# =====================
-# CONNECT DB
-# =====================
 def get_connection():
     try:
-        conn = psycopg.connect(
-            host=DB_CONFIG["host"],
-            port=DB_CONFIG["port"],
-            dbname=DB_CONFIG["dbname"],
-            user=DB_CONFIG["user"],
-            password=DB_CONFIG["password"],
-            row_factory=dict_row
+        conn_str = (
+            f"DRIVER={{{DB_CONFIG['driver']}}};"
+            f"SERVER={DB_CONFIG['server']};"
+            f"DATABASE={DB_CONFIG['database']};"
+            f"UID={DB_CONFIG['username']};"
+            f"PWD={DB_CONFIG['password']};"
+            "Encrypt=no;"
+            "TrustServerCertificate=yes;"
         )
+        conn = pyodbc.connect(conn_str)
         return conn
     except Exception as e:
         print("ERROR CONNECT DB:", e)
         return None
-    
-def db_error_response(message, code=500):
-    return jsonify({
-        "status": "error",
-        "message": message
-    }), code
 
 
-def success_response(message, data=None, code=200):
-    return jsonify({
-        "status": "success",
-        "message": message,
-        "data": data
-    }), code
-
-# =====================
-# HOME
-# =====================
+# Home route to render the frontend
 @app.route("/")
 def home():
     return render_template("index.html")
-
-# =====================
-# TEST CONNECTION
-# =====================
-@app.route("/test")
-def test_db():
-    try:
-        conn = get_connection()
-        if not conn:
-            return jsonify({
-                "status": "error",
-                "message": "Gagal konek ke PostgreSQL"
-            }), 500
-
-        with conn.cursor() as cursor:
-            cursor.execute("SELECT 1 AS test")
-            result = cursor.fetchone()
-
-        conn.close()
-
-        return jsonify({
-            "status": "success",
-            "message": "Koneksi PostgreSQL BERHASIL!",
-            "data": result
-        })
-    except Exception as e:
-        print("ERROR /test:", e)
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
-
-# =====================
-# CRUD GUDANG
-# =====================
 
 @app.route("/gudang", methods=["GET"])
 def get_gudang():
     try:
         conn = get_connection()
         if not conn:
-            return db_error_response("Koneksi database gagal")
+            return jsonify({"error": "Database connection failed"}), 500
 
-        with conn.cursor() as cursor:
-            cursor.execute("""
-                SELECT id_gudang, nama_gudang, lokasi
-                FROM ms_gudang
-                ORDER BY id_gudang
-            """)
-            rows = cursor.fetchall()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id_gudang, nama_gudang, lokasi FROM ms_gudang")
+        rows = cursor.fetchall()
 
+        result = [{"id_gudang": row[0], "nama_gudang": row[1], "lokasi": row[2]} for row in rows]
+        cursor.close()
         conn.close()
-        return success_response("Data gudang berhasil diambil", rows)
+
+        return jsonify({"status": "success", "data": result})
 
     except Exception as e:
-        print("ERROR GET /gudang:", e)
-        return db_error_response(str(e))
+        print("ERROR QUERY:", e)
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/gudang", methods=["POST"])
@@ -122,27 +65,23 @@ def create_gudang():
         lokasi = data.get("lokasi")
 
         if not nama_gudang or not lokasi:
-            return db_error_response("nama_gudang dan lokasi wajib diisi", 400)
+            return jsonify({"error": "Nama gudang dan lokasi harus diisi"}), 400
 
         conn = get_connection()
         if not conn:
-            return db_error_response("Koneksi database gagal")
+            return jsonify({"error": "Database connection failed"}), 500
 
-        with conn.cursor() as cursor:
-            cursor.execute("""
-                INSERT INTO ms_gudang (nama_gudang, lokasi)
-                VALUES (%s, %s)
-                RETURNING id_gudang, nama_gudang, lokasi
-            """, (nama_gudang, lokasi))
-            new_data = cursor.fetchone()
-            conn.commit()
-
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO ms_gudang (nama_gudang, lokasi) VALUES (?, ?)", (nama_gudang, lokasi))
+        conn.commit()
+        cursor.close()
         conn.close()
-        return success_response("Data gudang berhasil ditambahkan", new_data, 201)
+
+        return jsonify({"message": "Gudang added successfully"}), 201
 
     except Exception as e:
-        print("ERROR POST /gudang:", e)
-        return db_error_response(str(e))
+        print("ERROR CREATE:", e)
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/gudang/<int:id_gudang>", methods=["PUT"])
@@ -153,32 +92,24 @@ def update_gudang(id_gudang):
         lokasi = data.get("lokasi")
 
         if not nama_gudang or not lokasi:
-            return db_error_response("nama_gudang dan lokasi wajib diisi", 400)
+            return jsonify({"error": "Nama gudang dan lokasi harus diisi"}), 400
 
         conn = get_connection()
         if not conn:
-            return db_error_response("Koneksi database gagal")
+            return jsonify({"error": "Database connection failed"}), 500
 
-        with conn.cursor() as cursor:
-            cursor.execute("""
-                UPDATE ms_gudang
-                SET nama_gudang = %s, lokasi = %s
-                WHERE id_gudang = %s
-                RETURNING id_gudang, nama_gudang, lokasi
-            """, (nama_gudang, lokasi, id_gudang))
-            updated = cursor.fetchone()
-            conn.commit()
-
+        cursor = conn.cursor()
+        cursor.execute("UPDATE ms_gudang SET nama_gudang = ?, lokasi = ? WHERE id_gudang = ?", 
+                       (nama_gudang, lokasi, id_gudang))
+        conn.commit()
+        cursor.close()
         conn.close()
 
-        if not updated:
-            return db_error_response("Data gudang tidak ditemukan", 404)
-
-        return success_response("Data gudang berhasil diupdate", updated)
+        return jsonify({"message": "Gudang updated successfully"}), 200
 
     except Exception as e:
-        print("ERROR PUT /gudang:", e)
-        return db_error_response(str(e))
+        print("ERROR UPDATE:", e)
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/gudang/<int:id_gudang>", methods=["DELETE"])
@@ -186,53 +117,40 @@ def delete_gudang(id_gudang):
     try:
         conn = get_connection()
         if not conn:
-            return db_error_response("Koneksi database gagal")
+            return jsonify({"error": "Database connection failed"}), 500
 
-        with conn.cursor() as cursor:
-            cursor.execute("""
-                DELETE FROM ms_gudang
-                WHERE id_gudang = %s
-                RETURNING id_gudang, nama_gudang, lokasi
-            """, (id_gudang,))
-            deleted = cursor.fetchone()
-            conn.commit()
-
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM ms_gudang WHERE id_gudang = ?", (id_gudang,))
+        conn.commit()
+        cursor.close()
         conn.close()
 
-        if not deleted:
-            return db_error_response("Data gudang tidak ditemukan", 404)
-
-        return success_response("Data gudang berhasil dihapus", deleted)
+        return jsonify({"message": "Gudang deleted successfully"}), 200
 
     except Exception as e:
-        print("ERROR DELETE /gudang:", e)
-        return db_error_response(str(e))
+        print("ERROR DELETE:", e)
+        return jsonify({"error": str(e)}), 500
     
-# =====================
-# CRUD BARANG
-# =====================
-
 @app.route("/barang", methods=["GET"])
 def get_barang():
     try:
         conn = get_connection()
         if not conn:
-            return db_error_response("Koneksi database gagal")
+            return jsonify({"error": "Database connection failed"}), 500
 
-        with conn.cursor() as cursor:
-            cursor.execute("""
-                SELECT id_barang, nama_barang, kategori, satuan
-                FROM ms_barang
-                ORDER BY id_barang
-            """)
-            rows = cursor.fetchall()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id_barang, nama_barang, kategori, satuan FROM ms_barang")
+        rows = cursor.fetchall()
 
+        result = [{"id_barang": row[0], "nama_barang": row[1], "kategori": row[2], "satuan": row[3]} for row in rows]
+        cursor.close()
         conn.close()
-        return success_response("Data barang berhasil diambil", rows)
+
+        return jsonify({"status": "success", "data": result})
 
     except Exception as e:
-        print("ERROR GET /barang:", e)
-        return db_error_response(str(e))
+        print("ERROR QUERY:", e)
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/barang", methods=["POST"])
@@ -244,27 +162,24 @@ def create_barang():
         satuan = data.get("satuan")
 
         if not nama_barang or not kategori or not satuan:
-            return db_error_response("nama_barang, kategori, dan satuan wajib diisi", 400)
+            return jsonify({"error": "Nama barang, kategori, dan satuan harus diisi"}), 400
 
         conn = get_connection()
         if not conn:
-            return db_error_response("Koneksi database gagal")
+            return jsonify({"error": "Database connection failed"}), 500
 
-        with conn.cursor() as cursor:
-            cursor.execute("""
-                INSERT INTO ms_barang (nama_barang, kategori, satuan)
-                VALUES (%s, %s, %s)
-                RETURNING id_barang, nama_barang, kategori, satuan
-            """, (nama_barang, kategori, satuan))
-            new_data = cursor.fetchone()
-            conn.commit()
-
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO ms_barang (nama_barang, kategori, satuan) VALUES (?, ?, ?)", 
+                       (nama_barang, kategori, satuan))
+        conn.commit()
+        cursor.close()
         conn.close()
-        return success_response("Data barang berhasil ditambahkan", new_data, 201)
+
+        return jsonify({"message": "Barang added successfully"}), 201
 
     except Exception as e:
-        print("ERROR POST /barang:", e)
-        return db_error_response(str(e))
+        print("ERROR CREATE:", e)
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/barang/<int:id_barang>", methods=["PUT"])
@@ -276,32 +191,24 @@ def update_barang(id_barang):
         satuan = data.get("satuan")
 
         if not nama_barang or not kategori or not satuan:
-            return db_error_response("nama_barang, kategori, dan satuan wajib diisi", 400)
+            return jsonify({"error": "Nama barang, kategori, dan satuan harus diisi"}), 400
 
         conn = get_connection()
         if not conn:
-            return db_error_response("Koneksi database gagal")
+            return jsonify({"error": "Database connection failed"}), 500
 
-        with conn.cursor() as cursor:
-            cursor.execute("""
-                UPDATE ms_barang
-                SET nama_barang = %s, kategori = %s, satuan = %s
-                WHERE id_barang = %s
-                RETURNING id_barang, nama_barang, kategori, satuan
-            """, (nama_barang, kategori, satuan, id_barang))
-            updated = cursor.fetchone()
-            conn.commit()
-
+        cursor = conn.cursor()
+        cursor.execute("UPDATE ms_barang SET nama_barang = ?, kategori = ?, satuan = ? WHERE id_barang = ?", 
+                       (nama_barang, kategori, satuan, id_barang))
+        conn.commit()
+        cursor.close()
         conn.close()
 
-        if not updated:
-            return db_error_response("Data barang tidak ditemukan", 404)
-
-        return success_response("Data barang berhasil diupdate", updated)
+        return jsonify({"message": "Barang updated successfully"}), 200
 
     except Exception as e:
-        print("ERROR PUT /barang:", e)
-        return db_error_response(str(e))
+        print("ERROR UPDATE:", e)
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/barang/<int:id_barang>", methods=["DELETE"])
@@ -309,79 +216,53 @@ def delete_barang(id_barang):
     try:
         conn = get_connection()
         if not conn:
-            return db_error_response("Koneksi database gagal")
+            return jsonify({"error": "Database connection failed"}), 500
 
-        with conn.cursor() as cursor:
-            cursor.execute("""
-                DELETE FROM ms_barang
-                WHERE id_barang = %s
-                RETURNING id_barang, nama_barang, kategori, satuan
-            """, (id_barang,))
-            deleted = cursor.fetchone()
-            conn.commit()
-
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM ms_barang WHERE id_barang = ?", (id_barang,))
+        conn.commit()
+        cursor.close()
         conn.close()
 
-        if not deleted:
-            return db_error_response("Data barang tidak ditemukan", 404)
-
-        return success_response("Data barang berhasil dihapus", deleted)
+        return jsonify({"message": "Barang deleted successfully"}), 200
 
     except Exception as e:
-        print("ERROR DELETE /barang:", e)
-        return db_error_response(str(e))
-    
+        print("ERROR DELETE:", e)
+        return jsonify({"error": str(e)}), 500
 
-    
-# =====================
-# API STOK
-# =====================
+
+# ===================== STOK =====================
+
 @app.route("/stok", methods=["GET"])
 def get_stok():
     try:
         conn = get_connection()
         if not conn:
-            return jsonify({
-                "status": "error",
-                "message": "Koneksi database gagal"
-            }), 500
+            return jsonify({"error": "Database connection failed"}), 500
 
+        cursor = conn.cursor()
         query = """
-            SELECT 
-            s.id_stok,
-            s.id_gudang,
-            s.id_barang,
-            g.nama_gudang AS gudang,
-            g.lokasi AS lokasi,
-            b.nama_barang AS barang,
-            b.kategori AS kategori,
-            b.satuan AS satuan,
-            s.jumlah AS jumlah
+            SELECT s.id_stok, g.nama_gudang, g.lokasi, b.nama_barang, b.kategori, b.satuan, s.jumlah
             FROM tr_stok s
             JOIN ms_gudang g ON s.id_gudang = g.id_gudang
             JOIN ms_barang b ON s.id_barang = b.id_barang
-            ORDER BY s.id_stok
         """
+        cursor.execute(query)
+        rows = cursor.fetchall()
 
-        with conn.cursor() as cursor:
-            cursor.execute(query)
-            rows = cursor.fetchall()
-
+        result = [{"id_stok": row[0], "gudang": row[1], "lokasi": row[2], 
+                   "barang": row[3], "kategori": row[4], "satuan": row[5], 
+                   "jumlah": row[6]} for row in rows]
+        cursor.close()
         conn.close()
 
-        return jsonify({
-            "status": "success",
-            "message": "Data stok berhasil diambil",
-            "data": rows
-        })
+        return jsonify({"status": "success", "data": result})
 
     except Exception as e:
-        print("ERROR QUERY /stok:", e)
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
-    
+        print("ERROR QUERY:", e)
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/stok", methods=["POST"])
 def create_stok():
     try:
@@ -390,40 +271,25 @@ def create_stok():
         id_barang = data.get("id_barang")
         jumlah = data.get("jumlah")
 
-        if id_gudang is None or id_barang is None or jumlah is None:
-            return db_error_response("id_gudang, id_barang, dan jumlah wajib diisi", 400)
+        if not id_gudang or not id_barang or not jumlah:
+            return jsonify({"error": "ID Gudang, ID Barang, dan Jumlah harus diisi"}), 400
 
         conn = get_connection()
         if not conn:
-            return db_error_response("Koneksi database gagal")
+            return jsonify({"error": "Database connection failed"}), 500
 
-        with conn.cursor() as cursor:
-            cursor.execute("SELECT id_gudang FROM ms_gudang WHERE id_gudang = %s", (id_gudang,))
-            gudang = cursor.fetchone()
-            if not gudang:
-                conn.close()
-                return db_error_response("id_gudang tidak ditemukan", 404)
-
-            cursor.execute("SELECT id_barang FROM ms_barang WHERE id_barang = %s", (id_barang,))
-            barang = cursor.fetchone()
-            if not barang:
-                conn.close()
-                return db_error_response("id_barang tidak ditemukan", 404)
-
-            cursor.execute("""
-                INSERT INTO tr_stok (id_gudang, id_barang, jumlah)
-                VALUES (%s, %s, %s)
-                RETURNING *
-            """, (id_gudang, id_barang, jumlah))
-            new_data = cursor.fetchone()
-            conn.commit()
-
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO tr_stok (id_gudang, id_barang, jumlah) VALUES (?, ?, ?)", 
+                       (id_gudang, id_barang, jumlah))
+        conn.commit()
+        cursor.close()
         conn.close()
-        return success_response("Data stok berhasil ditambahkan", new_data, 201)
+
+        return jsonify({"message": "Stok added successfully"}), 201
 
     except Exception as e:
-        print("ERROR POST /stok:", e)
-        return db_error_response(str(e))
+        print("ERROR CREATE:", e)
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/stok/<int:id_stok>", methods=["PUT"])
@@ -434,45 +300,25 @@ def update_stok(id_stok):
         id_barang = data.get("id_barang")
         jumlah = data.get("jumlah")
 
-        if id_gudang is None or id_barang is None or jumlah is None:
-            return db_error_response("id_gudang, id_barang, dan jumlah wajib diisi", 400)
+        if not id_gudang or not id_barang or not jumlah:
+            return jsonify({"error": "ID Gudang, ID Barang, dan Jumlah harus diisi"}), 400
 
         conn = get_connection()
         if not conn:
-            return db_error_response("Koneksi database gagal")
+            return jsonify({"error": "Database connection failed"}), 500
 
-        with conn.cursor() as cursor:
-            cursor.execute("SELECT id_gudang FROM ms_gudang WHERE id_gudang = %s", (id_gudang,))
-            gudang = cursor.fetchone()
-            if not gudang:
-                conn.close()
-                return db_error_response("id_gudang tidak ditemukan", 404)
-
-            cursor.execute("SELECT id_barang FROM ms_barang WHERE id_barang = %s", (id_barang,))
-            barang = cursor.fetchone()
-            if not barang:
-                conn.close()
-                return db_error_response("id_barang tidak ditemukan", 404)
-
-            cursor.execute("""
-                UPDATE tr_stok
-                SET id_gudang = %s, id_barang = %s, jumlah = %s
-                WHERE id_stok = %s
-                RETURNING *
-            """, (id_gudang, id_barang, jumlah, id_stok))
-            updated = cursor.fetchone()
-            conn.commit()
-
+        cursor = conn.cursor()
+        cursor.execute("UPDATE tr_stok SET id_gudang = ?, id_barang = ?, jumlah = ? WHERE id_stok = ?", 
+                       (id_gudang, id_barang, jumlah, id_stok))
+        conn.commit()
+        cursor.close()
         conn.close()
 
-        if not updated:
-            return db_error_response("Data stok tidak ditemukan", 404)
-
-        return success_response("Data stok berhasil diupdate", updated)
+        return jsonify({"message": "Stok updated successfully"}), 200
 
     except Exception as e:
-        print("ERROR PUT /stok:", e)
-        return db_error_response(str(e))
+        print("ERROR UPDATE:", e)
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/stok/<int:id_stok>", methods=["DELETE"])
@@ -480,30 +326,19 @@ def delete_stok(id_stok):
     try:
         conn = get_connection()
         if not conn:
-            return db_error_response("Koneksi database gagal")
+            return jsonify({"error": "Database connection failed"}), 500
 
-        with conn.cursor() as cursor:
-            cursor.execute("""
-                DELETE FROM tr_stok
-                WHERE id_stok = %s
-                RETURNING *
-            """, (id_stok,))
-            deleted = cursor.fetchone()
-            conn.commit()
-
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM tr_stok WHERE id_stok = ?", (id_stok,))
+        conn.commit()
+        cursor.close()
         conn.close()
 
-        if not deleted:
-            return db_error_response("Data stok tidak ditemukan", 404)
-
-        return success_response("Data stok berhasil dihapus", deleted)
+        return jsonify({"message": "Stok deleted successfully"}), 200
 
     except Exception as e:
-        print("ERROR DELETE /stok:", e)
-        return db_error_response(str(e))
+        print("ERROR DELETE:", e)
+        return jsonify({"error": str(e)}), 500
 
-# =====================
-# RUN APP
-# =====================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
