@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Plus } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { fetchAll, createItem, updateItem, deleteItem } from '../api/axios'
+import { rambatApi, fetchAll, createItem, updateItem, deleteItem } from '../api/axios'
 import DataTable from '../components/DataTable'
 import FormModal from '../components/FormModal'
 import ConfirmModal from '../components/ConfirmModal'
@@ -29,7 +29,7 @@ export default function Gudang() {
 
   const loadData = useCallback(() => {
     setLoading(true)
-    fetchAll(ENDPOINT)
+    fetchAll(rambatApi, ENDPOINT)
       .then((res) => setData(res.data || []))
       .finally(() => setLoading(false))
   }, [])
@@ -40,10 +40,10 @@ export default function Gudang() {
 
   const handleSave = async (form) => {
     if (editing) {
-      await updateItem(ENDPOINT, form.id_gudang, form)
+      await updateItem(rambatApi, ENDPOINT, form.id_gudang, form)
       toast.success('Gudang berhasil diperbarui')
     } else {
-      await createItem(ENDPOINT, form)
+      await createItem(rambatApi, ENDPOINT, form)
       toast.success('Gudang berhasil ditambahkan')
     }
     setModalOpen(false)
@@ -53,7 +53,7 @@ export default function Gudang() {
 
   const handleDelete = async () => {
     if (!deleteTarget) return
-    await deleteItem(ENDPOINT, deleteTarget.id_gudang)
+    await deleteItem(rambatApi, ENDPOINT, deleteTarget.id_gudang)
     toast.success('Gudang berhasil dihapus')
     setDeleteTarget(null)
     loadData()

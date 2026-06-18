@@ -6,10 +6,15 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
-      '/api': {
-        target: 'http://localhost:5000',
+      '/api/rambat': {
+        target: 'http://100.87.168.12:5000',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
+        rewrite: (path) => path.replace(/^\/api\/rambat/, ''),
+      },
+      '/api/meiva': {
+        target: 'http://100.78.200.58:5000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/meiva/, ''),
       },
     },
   },

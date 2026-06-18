@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Plus } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { fetchAll, createItem, updateItem, deleteItem } from '../api/axios'
+import { rambatApi, meivaApi, fetchAll, createItem, updateItem, deleteItem } from '../api/axios'
 import DataTable from '../components/DataTable'
 import FormModal from '../components/FormModal'
 import ConfirmModal from '../components/ConfirmModal'
@@ -21,9 +21,9 @@ export default function Stok() {
   const loadData = useCallback(() => {
     setLoading(true)
     Promise.all([
-      fetchAll(ENDPOINT),
-      fetchAll('/gudang'),
-      fetchAll('/barang'),
+      fetchAll(rambatApi, ENDPOINT),
+      fetchAll(meivaApi, '/gudang'),
+      fetchAll(meivaApi, '/barang'),
     ]).then(([stokRes, gudangRes, barangRes]) => {
       setData(stokRes.data || [])
       setGudang(gudangRes.data || [])
@@ -73,10 +73,10 @@ export default function Stok() {
       jumlah: Number(form.jumlah),
     }
     if (editing) {
-      await updateItem(ENDPOINT, form.id_stok, payload)
+      await updateItem(rambatApi, ENDPOINT, form.id_stok, payload)
       toast.success('Stok berhasil diperbarui')
     } else {
-      await createItem(ENDPOINT, payload)
+      await createItem(rambatApi, ENDPOINT, payload)
       toast.success('Stok berhasil ditambahkan')
     }
     setModalOpen(false)
@@ -86,7 +86,7 @@ export default function Stok() {
 
   const handleDelete = async () => {
     if (!deleteTarget) return
-    await deleteItem(ENDPOINT, deleteTarget.id_stok)
+    await deleteItem(rambatApi, ENDPOINT, deleteTarget.id_stok)
     toast.success('Stok berhasil dihapus')
     setDeleteTarget(null)
     loadData()
@@ -142,7 +142,7 @@ export default function Stok() {
       <ConfirmModal
         open={!!deleteTarget}
         title="Hapus Stok"
-        message={`Yakin ingin menghapus catatan stok ini?`}
+        message="Yakin ingin menghapus catatan stok ini?"
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
       />

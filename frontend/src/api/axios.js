@@ -1,30 +1,39 @@
 import axios from 'axios'
 import toast from 'react-hot-toast'
 
-const api = axios.create({
-  baseURL: '/api',
-  headers: { 'Content-Type': 'application/json' },
-})
+const isDev = import.meta.env.DEV
 
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    const message =
-      error.response?.data?.message || error.message || 'Terjadi kesalahan'
-    toast.error(message)
-    return Promise.reject(error)
-  },
-)
+function createApi(backend, tailscaleUrl) {
+  const baseURL = isDev ? `/api/${backend}` : tailscaleUrl
 
-export const fetchAll = (endpoint) => api.get(endpoint).then((r) => r.data)
+  const api = axios.create({
+    baseURL,
+    headers: { 'Content-Type': 'application/json' },
+  })
 
-export const createItem = (endpoint, data) =>
+  api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+      const message =
+        error.response?.data?.message || error.message || 'Terjadi kesalahan'
+      toast.error(message)
+      return Promise.reject(error)
+    },
+  )
+
+  return api
+}
+
+export const rambatApi = createApi('rambat', import.meta.env.VITE_RAMBAT_URL)
+export const meivaApi = createApi('meiva', import.meta.env.VITE_MEIVA_URL)
+
+export const fetchAll = (api, endpoint) => api.get(endpoint).then((r) => r.data)
+
+export const createItem = (api, endpoint, data) =>
   api.post(endpoint, data).then((r) => r.data)
 
-export const updateItem = (endpoint, id, data) =>
+export const updateItem = (api, endpoint, id, data) =>
   api.put(`${endpoint}/${id}`, data).then((r) => r.data)
 
-export const deleteItem = (endpoint, id) =>
+export const deleteItem = (api, endpoint, id) =>
   api.delete(`${endpoint}/${id}`).then((r) => r.data)
-
-export default api

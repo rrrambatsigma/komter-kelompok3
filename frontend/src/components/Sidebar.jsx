@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   ChevronLeft,
   ChevronRight,
+  Server,
 } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { useState } from 'react'
@@ -57,6 +58,30 @@ export default function Sidebar() {
           </NavLink>
         ))}
       </nav>
+
+      <div className="mt-auto border-t border-slate-700 px-3 py-3">
+        {!collapsed && (
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            Tailscale Backend
+          </p>
+        )}
+        <div className="flex flex-col gap-1.5">
+          <div
+            className="flex items-center gap-2 text-xs text-slate-400"
+            title="100.87.168.12:5000"
+          >
+            <Server size={14} className="shrink-0 text-emerald-400" />
+            {!collapsed && <span>Rambat</span>}
+          </div>
+          <div
+            className="flex items-center gap-2 text-xs text-slate-400"
+            title="100.78.200.58:5000"
+          >
+            <Server size={14} className="shrink-0 text-sky-400" />
+            {!collapsed && <span>Meiva</span>}
+          </div>
+        </div>
+      </div>
     </aside>
   )
 }
