@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Warehouse, Package, Layers } from 'lucide-react'
-import { fetchAll } from '../api/axios'
+import { rambatApi, meivaApi, fetchAll } from '../api/axios'
 import StatCard from '../components/StatCard'
 import Loading from '../components/Loading'
 
@@ -10,9 +10,9 @@ export default function Dashboard() {
 
   useEffect(() => {
     Promise.all([
-      fetchAll('/gudang'),
-      fetchAll('/barang'),
-      fetchAll('/stok'),
+      fetchAll(meivaApi, '/gudang'),
+      fetchAll(meivaApi, '/barang'),
+      fetchAll(rambatApi, '/stok'),
     ])
       .then(([gudang, barang, stok]) => {
         setStats({

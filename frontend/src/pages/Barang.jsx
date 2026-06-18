@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Plus } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { fetchAll, createItem, updateItem, deleteItem } from '../api/axios'
+import { rambatApi, fetchAll, createItem, updateItem, deleteItem } from '../api/axios'
 import DataTable from '../components/DataTable'
 import FormModal from '../components/FormModal'
 import ConfirmModal from '../components/ConfirmModal'
@@ -31,7 +31,7 @@ export default function Barang() {
 
   const loadData = useCallback(() => {
     setLoading(true)
-    fetchAll(ENDPOINT)
+    fetchAll(rambatApi, ENDPOINT)
       .then((res) => setData(res.data || []))
       .finally(() => setLoading(false))
   }, [])
@@ -42,10 +42,10 @@ export default function Barang() {
 
   const handleSave = async (form) => {
     if (editing) {
-      await updateItem(ENDPOINT, form.id_barang, form)
+      await updateItem(rambatApi, ENDPOINT, form.id_barang, form)
       toast.success('Barang berhasil diperbarui')
     } else {
-      await createItem(ENDPOINT, form)
+      await createItem(rambatApi, ENDPOINT, form)
       toast.success('Barang berhasil ditambahkan')
     }
     setModalOpen(false)
@@ -55,7 +55,7 @@ export default function Barang() {
 
   const handleDelete = async () => {
     if (!deleteTarget) return
-    await deleteItem(ENDPOINT, deleteTarget.id_barang)
+    await deleteItem(rambatApi, ENDPOINT, deleteTarget.id_barang)
     toast.success('Barang berhasil dihapus')
     setDeleteTarget(null)
     loadData()
