@@ -4,16 +4,16 @@ import psycopg
 from psycopg.rows import dict_row
 
 app = Flask(__name__)
-CORS(app)
+CORS(app)  # supaya frontend temanmu bisa akses API ini
 
 # =====================
 # CONFIG DATABASE
 # =====================
 DB_CONFIG = {
-    "host": "100.99.218.78",
+    "host": "100.99.218.78",   # IP Tailscale laptop server database
     "port": 5432,
     "dbname": "inventaris_db",
-    "user": "postgres",
+    "user": "postgres",        # ganti kalau nanti pakai app_user
     "password": "031205"
 }
 
@@ -34,8 +34,7 @@ def get_connection():
     except Exception as e:
         print("ERROR CONNECT DB:", e)
         return None
-
-
+    
 def db_error_response(message, code=500):
     return jsonify({
         "status": "error",
@@ -50,14 +49,12 @@ def success_response(message, data=None, code=200):
         "data": data
     }), code
 
-
 # =====================
 # HOME
 # =====================
 @app.route("/")
 def home():
     return render_template("index.html")
-
 
 # =====================
 # TEST CONNECTION
@@ -89,7 +86,6 @@ def test_db():
             "status": "error",
             "message": str(e)
         }), 500
-
 
 # =====================
 # CRUD GUDANG
@@ -211,8 +207,7 @@ def delete_gudang(id_gudang):
     except Exception as e:
         print("ERROR DELETE /gudang:", e)
         return db_error_response(str(e))
-
-
+    
 # =====================
 # CRUD BARANG
 # =====================
@@ -335,8 +330,9 @@ def delete_barang(id_barang):
     except Exception as e:
         print("ERROR DELETE /barang:", e)
         return db_error_response(str(e))
+    
 
-
+    
 # =====================
 # API STOK
 # =====================
@@ -351,7 +347,7 @@ def get_stok():
             }), 500
 
         query = """
-            SELECT
+            SELECT 
             s.id_stok,
             s.id_gudang,
             s.id_barang,
@@ -385,8 +381,7 @@ def get_stok():
             "status": "error",
             "message": str(e)
         }), 500
-
-
+    
 @app.route("/stok", methods=["POST"])
 def create_stok():
     try:
@@ -506,7 +501,6 @@ def delete_stok(id_stok):
     except Exception as e:
         print("ERROR DELETE /stok:", e)
         return db_error_response(str(e))
-
 
 # =====================
 # RUN APP
